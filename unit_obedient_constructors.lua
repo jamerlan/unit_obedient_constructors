@@ -7,16 +7,17 @@ function widget:GetInfo()
         author    = "[teh]decay",
         date      = "5 oct 2013",
         license   = "GNU GPL, v2 or later",
-        version   = 1,
+        version   = 2,
         layer     = 5,
         enabled   = true --  loaded by default?
     }
 end
 
--- project page on github:
+-- project page on github: https://github.com/jamerlan/unit_obedient_constructors
 
 --Changelog
---
+-- v2 [teh]decay - fixed bug when only one constructor executes order
+
 
 local spGiveOrderToUnit = Spring.GiveOrderToUnit
 local spGetMyTeamId = Spring.GetMyTeamID
@@ -26,13 +27,14 @@ local spGetSelectedUnits = Spring.GetSelectedUnits
 local spGetCommandQueue = Spring.GetCommandQueue
 
 local spFightCMD = CMD.FIGHT
-local spSetWantedMaxSpeedCMD = CMD.CMD_SET_WANTED_MAX_SPEED
+local spGuardCMD = CMD.GUARD
 
 -------------------------------------------------------------------------------
 function widget:CommandNotify(id, params, options)
     local units = spGetSelectedUnits()
+
     for i, unit_id in ipairs(units) do
-        local commands=spGetCommandQueue(unit_id)
+        local commands = spGetCommandQueue(unit_id)
 --        Spring.Echo("cmds:" .. table.tostring(commands))
 --        Spring.Echo("cmds size:" .. #commands)
 --        Spring.Echo("")
@@ -40,23 +42,29 @@ function widget:CommandNotify(id, params, options)
         local containsFightOrder = false
 
         for i, command in ipairs(commands) do
-            if command.id == spFightCMD then
+            if command.id == spFightCMD or command.id == spGuardCMD then
                 containsFightOrder = true
             end
         end
 
-        if containsFightOrder then
-            local unitDefID = Spring.GetUnitDefID(unit_id)
-            local ud = UnitDefs[unitDefID]
-            if (UnitDefs[unitDefID]["canReclaim"] and ud.isFactory == false) then
-                options.shift = false
-                spGiveOrderToUnit(unit_id, id, params, options)
-                return true
-            end
+        local unitDefID = Spring.GetUnitDefID(unit_id)
+        local ud = UnitDefs[unitDefID]
+        if containsFightOrder and UnitDefs[unitDefID]["canReclaim"] and not ud.isFactory then
+            local options2 = {}
+--            if options.shift then options2[#options2+1] = 'shift' end
+            if options.alt then options2[#options2+1] = 'alt' end
+            if options.ctrl then options2[#options2+1] = 'ctrl' end
+            if options.right then options2[#options2+1] = 'right' end
+            if options.meta then options2[#options2+1] = 'meta' end
+            spGiveOrderToUnit(unit_id, id, params, options2)
+        else
+            local options2 = {}
+            for option, enabled in pairs(options) do if enabled then options2[#options2+1] = tostring(option) end end
+            spGiveOrderToUnit(unit_id, id, params, options2)
         end
-
     end
-    return false
+
+    return true
 end
 
 function widget:PlayerChanged(playerID)
