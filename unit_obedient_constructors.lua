@@ -2,12 +2,12 @@
 --------------------------------------------------------------------------------
 function widget:GetInfo()
     return {
-        name      = "Obedient constructors v3",
+        name      = "Obedient constructors v4",
         desc      = "Cancel constructor's orders when it has a fight order and new order given",
         author    = "[teh]decay",
         date      = "5 oct 2013",
         license   = "GNU GPL, v2 or later",
-        version   = 3,
+        version   = 4,
         layer     = 5,
         enabled   = true --  loaded by default?
     }
@@ -18,7 +18,7 @@ end
 --Changelog
 -- v2 [teh]decay - fixed bug when only one constructor executes order
 -- v3 [teh]decay - fix bug with queueing line of buildings after guard or fight order
-
+-- v4 [teh]decay - fixed conflict with customformations widgets + fixed confirmation sounds + code speedup
 
 local spGiveOrderToUnit = Spring.GiveOrderToUnit
 local spGetMyTeamId = Spring.GetMyTeamID
@@ -53,6 +53,8 @@ function widget:CommandNotify(id, params, options)
         end
     end
 
+    local builderWithGuardFound = false;
+
     for i, unit_id in ipairs(units) do
         local commands = spGetCommandQueue(unit_id)
 --        Spring.Echo("cmds:" .. table.tostring(commands))
@@ -62,42 +64,58 @@ function widget:CommandNotify(id, params, options)
 --        Spring.Echo("options:" .. table.tostring(options))
 --        Spring.Echo("")
 
-        local containsFightOrder = false
-
-        for i, command in ipairs(commands) do
-            if command.id == spFightCMD or command.id == spGuardCMD then
-                containsFightOrder = true
-            end
-        end
-
-        local unitDefID = Spring.GetUnitDefID(unit_id)
+        local unitDefID = spGetUnitDefID(unit_id)
         local ud = UnitDefs[unitDefID]
-        if containsFightOrder and UnitDefs[unitDefID]["canReclaim"] and not ud.isFactory then
-            local options2 = {}
-
-            if theSameUnits then
-                if options.shift then options2[#options2+1] = 'shift' end
-            else
-                previouslySelectedUnits = units
+        if UnitDefs[unitDefID]["canReclaim"] and not ud.isFactory then
+            for i, command in ipairs(commands) do
+                if command.id == spFightCMD or command.id == spGuardCMD then
+                    builderWithGuardFound = true
+                end
             end
-
-            if options.alt then options2[#options2+1] = 'alt' end
-            if options.ctrl then options2[#options2+1] = 'ctrl' end
-            if options.right then options2[#options2+1] = 'right' end
-            if options.meta then options2[#options2+1] = 'meta' end
-            spGiveOrderToUnit(unit_id, id, params, options2)
-        else
-            local options2 = {}
-            for option, enabled in pairs(options) do if enabled then options2[#options2+1] = tostring(option) end end
-            spGiveOrderToUnit(unit_id, id, params, options2)
+            break
         end
     end
 
-    if(id == spFightCMD or id == spGuardCMD) then
-        previouslySelectedUnits = {}
-    end
+    if not builderWithGuardFound then
+        if id == spFightCMD or id == spGuardCMD then
+            previouslySelectedUnits = {}
+        end
 
-    return true
+        return false
+    else
+        for i, unit_id in ipairs(units) do
+            local commands = spGetCommandQueue(unit_id)
+
+            local containsFightOrGuardOrder = false
+
+            for i, command in ipairs(commands) do
+                if command.id == spFightCMD or command.id == spGuardCMD then
+                    containsFightOrGuardOrder = true
+                end
+            end
+
+            local unitDefID = spGetUnitDefID(unit_id)
+            local ud = UnitDefs[unitDefID]
+            if containsFightOrGuardOrder and UnitDefs[unitDefID]["canReclaim"] and not ud.isFactory then
+                builderWithGuardFound = true;
+
+                if not theSameUnits then
+                    options.shift = nil
+                    previouslySelectedUnits = units
+                end
+
+                spGiveOrderToUnit(unit_id, id, params, options)
+            else
+                spGiveOrderToUnit(unit_id, id, params, options)
+            end
+        end
+
+        if id == spFightCMD or id == spGuardCMD then
+            previouslySelectedUnits = {}
+        end
+
+        return true
+    end
 end
 
 function widget:PlayerChanged(playerID)
@@ -120,6 +138,8 @@ function widget:Initialize()
 end
 
 --------------------------------------------------------------------------------
+--[[
+
 function table.val_to_str ( v )
     if "string" == type( v ) then
         v = string.gsub( v, "\n", "\\n" )
@@ -155,3 +175,4 @@ function table.tostring( tbl )
     end
     return "{" .. table.concat( result, "," ) .. "}"
 end
+]]
