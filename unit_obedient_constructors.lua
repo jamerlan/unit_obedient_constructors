@@ -2,12 +2,12 @@
 --------------------------------------------------------------------------------
 function widget:GetInfo()
     return {
-        name      = "Obedient constructors v4",
+        name      = "Obedient constructors v5",
         desc      = "Cancel constructor's orders when it has a fight order and new order given",
         author    = "[teh]decay",
         date      = "5 oct 2013",
         license   = "GNU GPL, v2 or later",
-        version   = 4,
+        version   = 5,
         layer     = 5,
         enabled   = true --  loaded by default?
     }
@@ -19,6 +19,7 @@ end
 -- v2 [teh]decay - fixed bug when only one constructor executes order
 -- v3 [teh]decay - fix bug with queueing line of buildings after guard or fight order
 -- v4 [teh]decay - fixed conflict with customformations widgets + fixed confirmation sounds + code speedup
+-- v5 [teh]decay - updated for spring 98 engine (improved performance)
 
 local spGiveOrderToUnit = Spring.GiveOrderToUnit
 local spGetMyTeamId = Spring.GetMyTeamID
@@ -35,6 +36,8 @@ local previouslySelectedUnits = {}
 -------------------------------------------------------------------------------
 function widget:CommandNotify(id, params, options)
     local units = spGetSelectedUnits()
+
+-- Spring.Echo (id .. " " .. table.tostring(params) .. table.tostring(options))
 
     if #units < 1 then return false end
 
@@ -56,7 +59,6 @@ function widget:CommandNotify(id, params, options)
     local builderWithGuardFound = false;
 
     for i, unit_id in ipairs(units) do
-        local commands = spGetCommandQueue(unit_id)
 --        Spring.Echo("cmds:" .. table.tostring(commands))
 --        Spring.Echo("cmds size:" .. #commands)
 --        Spring.Echo("id:" .. id)
@@ -67,6 +69,7 @@ function widget:CommandNotify(id, params, options)
         local unitDefID = spGetUnitDefID(unit_id)
         local ud = UnitDefs[unitDefID]
         if UnitDefs[unitDefID]["canReclaim"] and not ud.isFactory then
+            local commands = spGetCommandQueue(unit_id, 100) -- looking for depth of 100 commands only. Should be enough
             for i, command in ipairs(commands) do
                 if command.id == spFightCMD or command.id == spGuardCMD then
                     builderWithGuardFound = true
@@ -84,7 +87,7 @@ function widget:CommandNotify(id, params, options)
         return false
     else
         for i, unit_id in ipairs(units) do
-            local commands = spGetCommandQueue(unit_id)
+            local commands = spGetCommandQueue(unit_id, 100) -- looking for depth of 100 commands only. Should be enough
 
             local containsFightOrGuardOrder = false
 
@@ -176,3 +179,4 @@ function table.tostring( tbl )
     return "{" .. table.concat( result, "," ) .. "}"
 end
 ]]
+
